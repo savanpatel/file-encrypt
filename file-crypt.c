@@ -36,12 +36,11 @@ void getPasswordHash(char *password, unsigned char **hash, unsigned int *hashlen
   /* Now output contains the hash value, output_len contains length of output, which is 128 bit or 16 byte in case of MD5 */
 
   printf("Digest is: ");
-  for(i = 0; i < *hashlen; i++) printf("%02x", output[i]);
-  printf("\n %d output len\n", *hashlen);
-  /**
-    perform md5 hash of password and compare to the stored password in file.
-   **/
-   *hash = output;
+  for(i = 0; i < *hashlen; i++) printf("%03u ", output[i]);
+  printf("\n %d hash len\n", *hashlen);
+
+  *hash = output;
+  printf("Address of output is %p\n", output);
 }
 
 int verifyPassword(char *password, char *fileName) {
@@ -53,8 +52,8 @@ int verifyPassword(char *password, char *fileName) {
   unsigned int output_len, i;
   md = EVP_get_digestbyname("MD5");
   if(!md) {
-         printf("Unable to init MD5 digest\n");
-         exit(1);
+    printf("Unable to init MD5 digest\n");
+    exit(1);
   }
 
   EVP_MD_CTX_init(&mdctx);
@@ -80,6 +79,13 @@ int verifyPassword(char *password, char *fileName) {
    return 1 if successful, 0 otherwise.
  */
 int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
+  FILE *outFile = fopen(outFilePath, "w+");
+  unsigned char *passwordHashFromFile = (unsigned char *) malloc(17 * sizeof(unsigned char));
+  memset(passwordHashFromFile, '\0', 17 * sizeof(unsigned char));
+
+  unsigned char *passwordCopy = (unsigned char *) malloc(17 * sizeof(unsigned char));
+  memset(passwordCopy, '\0', 17 * sizeof(unsigned char));
+
   printf("Encrypting file %s\n", sourceFilePath);
 
   unsigned char *passwordHash = NULL;
@@ -87,52 +93,33 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
 
   getPasswordHash(password, &passwordHash, &passwordHashLen);
 
-  //printf("Password: %s \n Hash: %s \n hashlen: %d\n", password, passwordHash, passwordHashLen);
 
-  FILE *outFile = fopen(outFilePath, "w+");
-  for (int i = 0; i < passwordHashLen; i++) {
-    unsigned char toFile = (int)passwordHash[i];
-    printf("Before writing to file: %d, i is %d\n", (int)passwordHash[i], i);
-    fprintf(outFile, "%d ", (int)toFile);
-    printf("After writing to file: %d, i is %d\n", (int)passwordHash[i], i);
+  for(unsigned int i = 0; i < passwordHashLen; i++){
+    passwordCopy[i] = passwordHash[i];
+    //printf(" %03u ", passwordHash[i]);
   }
+
+
+  printf("\n");
+  for(unsigned int i = 0; i < passwordHashLen; i++){
+    fprintf(outFile, "%03u ", passwordCopy[i]);
+  }
+
   fseek(outFile, 0L, SEEK_SET);
-  unsigned char *passwordHashFromFile = (unsigned char *) malloc(17 * sizeof(unsigned char));
-  memset(passwordHashFromFile, '\0', 17 * sizeof(unsigned char));
 
-  for (int i = 0; i < passwordHashLen; i++) {
-    int intFromFile;
-    unsigned char toMatch = passwordHash[i];
-    fscanf(outFile,"%d ", &intFromFile);
-    printf("Read %d matching to %d\n", intFromFile, (int) toMatch);
-    if (intFromFile != toMatch) {
-      printf("Password Hash do not match!\n");
+  printf("\n");
+  for(unsigned int i = 0; i < passwordHashLen; i++) {
+    unsigned int fromFile;
+    fscanf(outFile, "%03u ", &fromFile);
+    printf("%03u ", fromFile);
+    if (fromFile != passwordCopy[i]) {
+      printf("Not equal\n");
       return 0;
-      /* code */
     }
-    //passwordHashFromFile[i] = (unsigned char) tempFileRead;
-  //  passwordHashFromFile[i] = (unsigned char) tempFileRead;
-    //printf("[%u]\n", (unsigned int) passwordHashFromFile[i] );
-  }
-  //int readBytes = fread(passwordHashFromFile, 17, 1, outFile);
-
-  //printf("\n Read %d bytes", readBytes);
-  /*printf("\nFrom process:\n");
-  for (int i = 0; i < passwordHashLen; i++) {
-    printf("%d", (int)passwordHash[i]);
   }
 
-  printf("\n From File:\n");
-  for (int i = 0; i < passwordHashLen; i++) {
-    printf("%d", (int)passwordHashFromFile[i]);
-  }
+  printf("Equal Yay!\n");
 
-  if (memcmp(passwordHash, passwordHashFromFile, passwordHashLen) == 0) {
-    printf("\npassword hash are equal\n");
-  } else {
-    printf("\npassword hash are NOT equal\n");
-  }*/
-  fclose(outFile);
   return 0;
 }
 
