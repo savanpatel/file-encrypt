@@ -15,12 +15,13 @@ typedef struct KEY_IV {
 KEY_IV * generateKeyIV(const char *password);
 
 void init() {
-  /* Initialize digests table */
   OpenSSL_add_all_algorithms();
   OpenSSL_add_all_digests();
 }
 
-void getPasswordHash(char *password, unsigned char **hash, unsigned int *hashlen) {
+void getPasswordHash(char *password,
+                     unsigned char **hash,
+                     unsigned int *hashlen) {
   EVP_MD_CTX mdctx;
   const EVP_MD *md;
   char input[] = "md5";
@@ -35,47 +36,10 @@ void getPasswordHash(char *password, unsigned char **hash, unsigned int *hashlen
   EVP_MD_CTX_init(&mdctx);
   EVP_DigestInit_ex(&mdctx, md, NULL);
   EVP_DigestUpdate(&mdctx, password, strlen(password));
-  /* to add more data to hash, place additional calls to EVP_DigestUpdate here */
   EVP_DigestFinal_ex(&mdctx, output, hashlen);
   EVP_MD_CTX_cleanup(&mdctx);
 
-  /* Now output contains the hash value, output_len contains length of output, which is 128 bit or 16 byte in case of MD5 */
-
-  /*printf("Digest is: ");
-  for(i = 0; i < *hashlen; i++) printf("%03u ", output[i]);
-  printf("\n %d hash len\n", *hashlen);
-  */
   *hash = output;
-}
-
-int verifyPassword(char *password, char *fileName) {
-
-  EVP_MD_CTX mdctx;
-  const EVP_MD *md;
-  char input[] = "md5";
-  unsigned char output[EVP_MAX_MD_SIZE];
-  unsigned int output_len, i;
-  md = EVP_get_digestbyname("MD5");
-  if(!md) {
-    printf("Unable to init MD5 digest\n");
-    exit(1);
-  }
-
-  EVP_MD_CTX_init(&mdctx);
-  EVP_DigestInit_ex(&mdctx, md, NULL);
-  EVP_DigestUpdate(&mdctx, password, strlen(password));
-  /* to add more data to hash, place additional calls to EVP_DigestUpdate here */
-  EVP_DigestFinal_ex(&mdctx, output, &output_len);
-  EVP_MD_CTX_cleanup(&mdctx);
-
-  /* Now output contains the hash value, output_len contains length of output, which is 128 bit or 16 byte in case of MD5 */
-
-/*  printf("Digest is: ");
-  for(i = 0; i < output_len; i++) printf("%02x", output[i]);
-  printf("\n %d output len\n", output_len);
-  */
-
-   return 0;
 }
 
 void handleErrors(void)
@@ -84,6 +48,9 @@ void handleErrors(void)
   abort();
 }
 
+/*
+ * Reference: https://wiki.openssl.org/index.php/EVP_Symmetric_Encryption_and_Decryption
+ */
 int encryptText(unsigned char *plaintext, int plaintext_len,
                 unsigned char *key,unsigned char *iv,
                 unsigned char *ciphertext)
@@ -92,7 +59,7 @@ int encryptText(unsigned char *plaintext, int plaintext_len,
 
   int len;
 
-  int ciphertext_len;
+  int ciphertextLen;
 
   /* Create and initialise the context */
   if(!(ctx = EVP_CIPHER_CTX_new())) handleErrors();
@@ -110,22 +77,24 @@ int encryptText(unsigned char *plaintext, int plaintext_len,
    */
   if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
     handleErrors();
-  ciphertext_len = len;
+  ciphertextLen = len;
 
   /* Finalise the encryption. Further ciphertext bytes may be written at
    * this stage.
    */
   if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len)) handleErrors();
-  ciphertext_len += len;
+  ciphertextLen += len;
 
   /* Clean up */
   EVP_CIPHER_CTX_free(ctx);
 
-  return ciphertext_len;
+  return ciphertextLen;
 }
 
-
-int decryptText(unsigned char *ciphertext, int ciphertext_len,
+/*
+ * Reference: https://wiki.openssl.org/index.php/EVP_Symmetric_Encryption_and_Decryption
+ */
+int decryptText(unsigned char *ciphertext, int ciphertextLen,
                 unsigned char *key, unsigned char *iv,
                 unsigned char *plaintext)
 {
@@ -149,7 +118,7 @@ int decryptText(unsigned char *ciphertext, int ciphertext_len,
   /* Provide the message to be decrypted, and obtain the plaintext output.
    * EVP_DecryptUpdate can be called multiple times if necessary
    */
-  if(1 != EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len))
+  if(1 != EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertextLen))
     handleErrors();
   plaintext_len = len;
 
@@ -164,6 +133,7 @@ int decryptText(unsigned char *ciphertext, int ciphertext_len,
 
   return plaintext_len;
 }
+
 /**
    encrypt the given sourceFile and send output to outFile
    return 1 if successful, 0 otherwise.
@@ -172,7 +142,7 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   FILE *outFile = fopen(outFilePath, "w+");
   FILE *sourceFile = fopen(sourceFilePath, "r");
 
-  unsigned char *passwordCopy = (unsigned char *) malloc(17 * sizeof(unsigned char));
+  unsigned char passwordCopy[17];
   memset(passwordCopy, '\0', 17 * sizeof(unsigned char));
   unsigned char *passwordHash = NULL;
   unsigned int passwordHashLen;
@@ -180,26 +150,20 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   getPasswordHash(password, &passwordHash, &passwordHashLen);
 
   // TODO: comment for potential better way.
-  for(unsigned int i = 0; i < passwordHashLen; i++){
-    passwordCopy[i] = passwordHash[i];
-  }
-
-
-  // TODO: remove.
+  memcpy(passwordCopy, passwordHash, 16 * sizeof(unsigned char));
 
   for(unsigned int i = 0; i < passwordHashLen; i++){
     fprintf(outFile, "%03u ", passwordCopy[i]);
   }
 
-  char data[81];
+  KEY_IV *key_iv = generateKeyIV(password);
   int readLen = 0, encryptLen = 0;
+  unsigned char ciphertext[100];
+  char data[81];
   memset(data, '\0', 81);
 
-  unsigned char *ciphertext = (unsigned char *) malloc(100 * sizeof(unsigned char));
-  KEY_IV *key_iv = generateKeyIV(password);
-
   while ((readLen = fread(data, 1, 80, sourceFile)) != 0) {
-    memset(ciphertext, '\0', 100);
+    memset(ciphertext, '\0', 100 * sizeof(unsigned char));
     encryptLen = encryptText((unsigned char *)data, readLen,
                              key_iv->key, key_iv->iv, ciphertext);
     fprintf(outFile, "%03d ", encryptLen);
@@ -209,49 +173,8 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
     memset(data, '\0', 81);
   }
 
-  //free(ciphertext);
-  //free(passwordHash);
-  //free(passwordCopy);
   fclose(outFile);
   fclose(sourceFile);
-  // TODO:remove
-/*  fseek(outFile, 0L, SEEK_SET);
-
-  printf("\n");
-  for(unsigned int i = 0; i < passwordHashLen; i++) {
-    unsigned int fromFile;
-    fscanf(outFile, "%03u ", &fromFile);
-    printf("%03u ", fromFile);
-    if (fromFile != passwordCopy[i]) {
-      printf("Not equal\n");
-      return 0;
-    }
-  }
-  printf("-----------------\n");
-  while (1) {
-    int encryptedlen;
-    int success = fscanf(outFile, "%03d ", &encryptedlen);
-    printf("encryptedlen is %d \n", encryptedlen);
-    if (!success) {
-      break;
-    }
-
-    unsigned char *encryptedText = (unsigned char *) malloc((encryptedlen+1)*sizeof(unsigned char));
-    for (unsigned int i = 0; i < encryptedlen; i++) {
-      unsigned int u;
-      fscanf(outFile, "%03u ", &u);
-      printf("read... %03u\n", u);
-      encryptedText[i] = (unsigned char)u;
-    }
-    char plaintext1[81];
-    memset(plaintext1, '\0', 81);
-    decryptText((unsigned char *)encryptedText, encryptedlen,
-                key_iv->key, key_iv->iv,
-                (unsigned char *)plaintext1);
-    printf("From decrypt: %s", plaintext1);
-  }
-  printf("Equal Yay!\n");
-  */
   return 0;
 }
 
@@ -263,16 +186,14 @@ int decryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   FILE *outFile = fopen(outFilePath, "w+");
   FILE *sourceFile = fopen(sourceFilePath, "r");
 
-  unsigned char *passwordCopy = (unsigned char *) malloc(17 * sizeof(unsigned char));
+  unsigned char passwordCopy[17];
   memset(passwordCopy, '\0', 17 * sizeof(unsigned char));
   unsigned char *passwordHash = NULL;
   unsigned int passwordHashLen;
 
   getPasswordHash(password, &passwordHash, &passwordHashLen);
 
-  for(unsigned int i = 0; i < passwordHashLen; i++){
-    passwordCopy[i] = passwordHash[i];
-  }
+  memcpy(passwordCopy, passwordHash, 16 * sizeof(unsigned char));
 
   unsigned char *ciphertext = (unsigned char *) malloc(100 * sizeof(unsigned char));
   unsigned char *plaintext = (unsigned char *) malloc(81 * sizeof(unsigned char));
