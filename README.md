@@ -1,7 +1,7 @@
-# file-encrypt
+# file-crypt
 
 ### What it is?
-file-encrypt is simple file encryption-decryption python script.
+file-crypt is simple password protected file encryption-decryption tool written in c.
 ### Required installations.
 open ssl c library
 on mac 
