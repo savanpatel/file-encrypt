@@ -1,12 +1,19 @@
 # file-encrypt
 
 ### What it is?
-file-encrypt is simple file encryption-decryption python script. It runs on simple-crypt module. Encrypt and decrypt file with given password.
-
+file-encrypt is simple file encryption-decryption python script.
 ### Required installations.
-simple-crypt: `pip install simple-crypt` 
+open ssl c library
+on mac 
 
-python 2.7
+`brew install openssl` 
 
-#### NOTE
-Currently the the repo is in development stage needing bug fixes.
+`brew install openssl-dev`
+#### Usage
+Build the executable with `make`
+
+Encrypt file:
+ `./file-crypt ENCRYPT test.c test.enc`
+
+Decrypt file:
+ `./file-crypt DECRYPT test.enc decrypted.c`
