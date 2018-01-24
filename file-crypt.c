@@ -7,7 +7,7 @@
 #include <openssl/evp.h>
 #include <openssl/err.h>
 
-//TODO: in separate header file.
+//TODO: in separate header file
 typedef struct KEY_IV {
   unsigned char key[EVP_MAX_KEY_LENGTH], iv[EVP_MAX_IV_LENGTH];
 } KEY_IV;
@@ -41,12 +41,11 @@ void getPasswordHash(char *password, unsigned char **hash, unsigned int *hashlen
 
   /* Now output contains the hash value, output_len contains length of output, which is 128 bit or 16 byte in case of MD5 */
 
-  printf("Digest is: ");
+  /*printf("Digest is: ");
   for(i = 0; i < *hashlen; i++) printf("%03u ", output[i]);
   printf("\n %d hash len\n", *hashlen);
-
+  */
   *hash = output;
-  printf("Address of output is %p\n", output);
 }
 
 int verifyPassword(char *password, char *fileName) {
@@ -71,12 +70,11 @@ int verifyPassword(char *password, char *fileName) {
 
   /* Now output contains the hash value, output_len contains length of output, which is 128 bit or 16 byte in case of MD5 */
 
-  printf("Digest is: ");
+/*  printf("Digest is: ");
   for(i = 0; i < output_len; i++) printf("%02x", output[i]);
   printf("\n %d output len\n", output_len);
-  /**
-    perform md5 hash of password and compare to the stored password in file.
-   **/
+  */
+
    return 0;
 }
 
@@ -173,15 +171,11 @@ int decryptText(unsigned char *ciphertext, int ciphertext_len,
 int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   FILE *outFile = fopen(outFilePath, "w+");
   FILE *sourceFile = fopen(sourceFilePath, "r");
-  //unsigned char *passwordHashFromFile = (unsigned char *) malloc(17 * sizeof(unsigned char));
-  //memset(passwordHashFromFile, '\0', 17 * sizeof(unsigned char));
 
   unsigned char *passwordCopy = (unsigned char *) malloc(17 * sizeof(unsigned char));
   memset(passwordCopy, '\0', 17 * sizeof(unsigned char));
   unsigned char *passwordHash = NULL;
   unsigned int passwordHashLen;
-
-  printf("Encrypting file %s\n", sourceFilePath);
 
   getPasswordHash(password, &passwordHash, &passwordHashLen);
 
@@ -192,50 +186,36 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
 
 
   // TODO: remove.
-  printf("\n");
+
   for(unsigned int i = 0; i < passwordHashLen; i++){
     fprintf(outFile, "%03u ", passwordCopy[i]);
   }
 
-  //fprintf(outFile, "\n");
+  char data[81];
+  int readLen = 0, encryptLen = 0;
+  memset(data, '\0', 81);
 
-  // encrypt chunks of 80 chars.
-  //TODO: remove following crap.
-  char *plaintext = "Savan";
   unsigned char *ciphertext = (unsigned char *) malloc(100 * sizeof(unsigned char));
   KEY_IV *key_iv = generateKeyIV(password);
-  int len = encryptText((unsigned char *)plaintext, 5, key_iv->key, key_iv->iv, ciphertext);
 
-  printf("\n plaintext: %s\n", plaintext);
-  printf("ciphertext: %s\n", ciphertext);
-
-  unsigned char *plaintextdec = (unsigned char *) malloc(5 * sizeof(unsigned char));
-  len = decryptText(ciphertext, len,
-                    key_iv->key, key_iv->iv,
-                    plaintextdec);
-  plaintextdec[len] = '\0';
-  printf("\n Decrypted text: %s, len %d \n", plaintextdec, len);
-
-  // read file 80 chars each.
-  char data[81];
-  memset(data, '\0', 81);
-  int encryptlen = 0;
-  while ((len = fread(data, 1, 80, sourceFile)) != 0) {
-    if (len == 0) {
-      printf("I AM DONE\n");
-      break;
-    }
-    encryptlen = encryptText((unsigned char *)data, strlen(data),
+  while ((readLen = fread(data, 1, 80, sourceFile)) != 0) {
+    memset(ciphertext, '\0', 100);
+    encryptLen = encryptText((unsigned char *)data, readLen,
                              key_iv->key, key_iv->iv, ciphertext);
-    printf("encryptlen is %d\n", encryptlen);
-    fprintf(outFile, "%03d ", encryptlen);
-    for (unsigned int i = 0; i < encryptlen; i++) {
+    fprintf(outFile, "%03d ", encryptLen);
+    for (unsigned int i = 0; i < encryptLen; i++) {
       fprintf(outFile, "%03u ", ciphertext[i]);
     }
     memset(data, '\0', 81);
   }
+
+  //free(ciphertext);
+  //free(passwordHash);
+  //free(passwordCopy);
+  fclose(outFile);
+  fclose(sourceFile);
   // TODO:remove
-  fseek(outFile, 0L, SEEK_SET);
+/*  fseek(outFile, 0L, SEEK_SET);
 
   printf("\n");
   for(unsigned int i = 0; i < passwordHashLen; i++) {
@@ -271,14 +251,65 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
     printf("From decrypt: %s", plaintext1);
   }
   printf("Equal Yay!\n");
-
+  */
   return 0;
 }
 
 /**
   decrypt the given file after verifying password.
  */
-int decryptFile(char *password, char *sourceFile, char *outFile) {
+int decryptFile(char *password, char *sourceFilePath, char *outFilePath) {
+  KEY_IV *key_iv = generateKeyIV(password);
+  FILE *outFile = fopen(outFilePath, "w+");
+  FILE *sourceFile = fopen(sourceFilePath, "r");
+
+  unsigned char *passwordCopy = (unsigned char *) malloc(17 * sizeof(unsigned char));
+  memset(passwordCopy, '\0', 17 * sizeof(unsigned char));
+  unsigned char *passwordHash = NULL;
+  unsigned int passwordHashLen;
+
+  getPasswordHash(password, &passwordHash, &passwordHashLen);
+
+  for(unsigned int i = 0; i < passwordHashLen; i++){
+    passwordCopy[i] = passwordHash[i];
+  }
+
+  unsigned char *ciphertext = (unsigned char *) malloc(100 * sizeof(unsigned char));
+  unsigned char *plaintext = (unsigned char *) malloc(81 * sizeof(unsigned char));
+
+  for(unsigned int i = 0; i < passwordHashLen; i++) {
+    unsigned int fromFile;
+    fscanf(sourceFile, "%03u ", &fromFile);
+    if (fromFile != passwordCopy[i]) {
+      printf("Password does not match.\n");
+      return 0;
+    }
+  }
+
+  while (1) {
+    int ciphertextLen = 0;
+    unsigned int i = 0;
+    int isPresent = fscanf(sourceFile, "%03u ", &ciphertextLen);
+    if (isPresent == -1) {
+      break;
+    }
+    for (i = 0; i < ciphertextLen; i++) {
+      unsigned int u;
+      fscanf(sourceFile, "%03u ", &u);
+      ciphertext[i] = (unsigned char)u;
+    }
+
+    ciphertext[i] = '\0';
+    int decryptLen =
+        decryptText(ciphertext, ciphertextLen, key_iv->key, key_iv->iv, plaintext);
+    plaintext[decryptLen] = '\0';
+    fprintf(outFile, "%s", (char *)plaintext);
+  }
+
+  //free(ciphertext);
+  //free(plaintext);
+  fclose(sourceFile);
+  fclose(outFile);
   return 0;
 }
 
@@ -325,7 +356,7 @@ int main(int argc, char *argv[])
     if(strcmp(mode, "ENCRYPT") == 0) {
       encryptFile(password, inFile, outFile);
     } else if (strcmp(mode, "DECRYPT") == 0) {
-      /* decrypt */
+      decryptFile(password, inFile, outFile);
     } else {
       fprintf(stderr, "Incorrect operation mode Supported are {ENCRYPT, DECRYPT}");
       exit(1);
