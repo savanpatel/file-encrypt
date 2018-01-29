@@ -139,7 +139,7 @@ int decryptText(unsigned char *ciphertext, int ciphertextLen,
    return 1 if successful, 0 otherwise.
  */
 int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
-  FILE *outFile = fopen(outFilePath, "w+");
+  FILE *outFile = fopen(outFilePath, "wb+");
   FILE *sourceFile = fopen(sourceFilePath, "r");
 
   unsigned char passwordCopy[17];
@@ -149,12 +149,10 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
 
   getPasswordHash(password, &passwordHash, &passwordHashLen);
 
-  // TODO: comment for potential better way.
   memcpy(passwordCopy, passwordHash, 16 * sizeof(unsigned char));
 
-  for(unsigned int i = 0; i < passwordHashLen; i++){
-    fprintf(outFile, "%03u ", passwordCopy[i]);
-  }
+  int writeLen = fwrite(passwordCopy, sizeof(unsigned char), 16, outFile);
+  printf("Written %d\n", writeLen);
 
   KEY_IV *key_iv = generateKeyIV(password);
   int readLen = 0, encryptLen = 0;
@@ -163,13 +161,12 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   memset(data, '\0', 81);
 
   while ((readLen = fread(data, 1, 80, sourceFile)) != 0) {
+
     memset(ciphertext, '\0', 100 * sizeof(unsigned char));
     encryptLen = encryptText((unsigned char *)data, readLen,
                              key_iv->key, key_iv->iv, ciphertext);
-    fprintf(outFile, "%03d ", encryptLen);
-    for (unsigned int i = 0; i < encryptLen; i++) {
-      fprintf(outFile, "%03u ", ciphertext[i]);
-    }
+    fwrite(&encryptLen, sizeof(int), 1, outFile);
+    fwrite(ciphertext, sizeof(unsigned char), encryptLen, outFile);
     memset(data, '\0', 81);
   }
 
@@ -184,10 +181,13 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
 int decryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   KEY_IV *key_iv = generateKeyIV(password);
   FILE *outFile = fopen(outFilePath, "w+");
-  FILE *sourceFile = fopen(sourceFilePath, "r");
+  FILE *sourceFile = fopen(sourceFilePath, "rb");
 
   unsigned char passwordCopy[17];
+  unsigned char passwordFromFile[17];
   memset(passwordCopy, '\0', 17 * sizeof(unsigned char));
+  memset(passwordFromFile, '\0', 17 * sizeof(unsigned char));
+
   unsigned char *passwordHash = NULL;
   unsigned int passwordHashLen;
 
@@ -198,10 +198,9 @@ int decryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   unsigned char *ciphertext = (unsigned char *) malloc(100 * sizeof(unsigned char));
   unsigned char *plaintext = (unsigned char *) malloc(81 * sizeof(unsigned char));
 
+  fread(passwordFromFile, sizeof(unsigned char), 16, sourceFile);
   for(unsigned int i = 0; i < passwordHashLen; i++) {
-    unsigned int fromFile;
-    fscanf(sourceFile, "%03u ", &fromFile);
-    if (fromFile != passwordCopy[i]) {
+    if (passwordFromFile[i] != passwordCopy[i]) {
       printf("Password does not match.\n");
       return 0;
     }
@@ -209,26 +208,20 @@ int decryptFile(char *password, char *sourceFilePath, char *outFilePath) {
 
   while (1) {
     int ciphertextLen = 0;
-    unsigned int i = 0;
-    int isPresent = fscanf(sourceFile, "%03u ", &ciphertextLen);
-    if (isPresent == -1) {
+    int i = 0;
+    int isPresent = fread(&ciphertextLen, sizeof(int), 1, sourceFile);
+    if (isPresent == 0) {
       break;
     }
-    for (i = 0; i < ciphertextLen; i++) {
-      unsigned int u;
-      fscanf(sourceFile, "%03u ", &u);
-      ciphertext[i] = (unsigned char)u;
-    }
 
-    ciphertext[i] = '\0';
+    fread(ciphertext, sizeof(unsigned char), ciphertextLen, sourceFile);
+    ciphertext[ciphertextLen] = '\0';
     int decryptLen =
         decryptText(ciphertext, ciphertextLen, key_iv->key, key_iv->iv, plaintext);
     plaintext[decryptLen] = '\0';
     fprintf(outFile, "%s", (char *)plaintext);
   }
 
-  //free(ciphertext);
-  //free(plaintext);
   fclose(sourceFile);
   fclose(outFile);
   return 0;
