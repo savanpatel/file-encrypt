@@ -152,7 +152,6 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   memcpy(passwordCopy, passwordHash, 16 * sizeof(unsigned char));
 
   int writeLen = fwrite(passwordCopy, sizeof(unsigned char), 16, outFile);
-  printf("Written %d\n", writeLen);
 
   KEY_IV *key_iv = generateKeyIV(password);
   int readLen = 0, encryptLen = 0;
@@ -172,6 +171,7 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
 
   fclose(outFile);
   fclose(sourceFile);
+  remove(sourceFilePath);
   return 0;
 }
 
@@ -224,6 +224,7 @@ int decryptFile(char *password, char *sourceFilePath, char *outFilePath) {
 
   fclose(sourceFile);
   fclose(outFile);
+  remove(sourceFilePath);
   return 0;
 }
 
