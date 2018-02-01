@@ -142,6 +142,14 @@ int encryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   FILE *outFile = fopen(outFilePath, "wb+");
   FILE *sourceFile = fopen(sourceFilePath, "r");
 
+  if (NULL == sourceFile) {
+    printf("Failed to open %s. Encryption failed.\n", sourceFilePath);
+  }
+
+  if (NULL == outFile) {
+    printf("Failed to open %s. Encryption failed.\n", outFilePath);
+  }
+
   unsigned char passwordCopy[17];
   memset(passwordCopy, '\0', 17 * sizeof(unsigned char));
   unsigned char *passwordHash = NULL;
@@ -183,6 +191,14 @@ int decryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   FILE *outFile = fopen(outFilePath, "w+");
   FILE *sourceFile = fopen(sourceFilePath, "rb");
 
+  if (NULL == sourceFile) {
+    printf("Failed to open %s. Encryption failed.\n", sourceFilePath);
+  }
+
+  if (NULL == outFile) {
+    printf("Failed to open %s. Encryption failed.\n", outFilePath);
+  }
+
   unsigned char passwordCopy[17];
   unsigned char passwordFromFile[17];
   memset(passwordCopy, '\0', 17 * sizeof(unsigned char));
@@ -209,8 +225,8 @@ int decryptFile(char *password, char *sourceFilePath, char *outFilePath) {
   while (1) {
     int ciphertextLen = 0;
     int i = 0;
-    int isPresent = fread(&ciphertextLen, sizeof(int), 1, sourceFile);
-    if (isPresent == 0) {
+    int isDone = fread(&ciphertextLen, sizeof(int), 1, sourceFile);
+    if (isDone == 0) {
       break;
     }
 
