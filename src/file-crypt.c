@@ -273,13 +273,60 @@ KEY_IV * generateKeyIV(const char *password) {
   return key_iv;
 }
 
+void printUsage() {
+  printf("Usage: ./file-crypt -e <file_to_encrypt> -o <out_file> | ");
+  printf("./file-crypt -d <file_to_decrypt> -o <out_file> \n");
+}
+
+void getoptions (char **mode, char **inFile, char **outFile, int argc, char **argv) {
+  char c;
+  int encryptFlag = 0;
+  int decryptFlag = 0;
+  while((c = getopt(argc, argv, "e:d:o:")) != -1) {
+    switch (c) {
+      case 'e': if (encryptFlag) {
+                  printUsage();
+                  exit(1);
+              } else {
+                encryptFlag++;
+                decryptFlag++;
+              }
+              *mode = "ENCRYPT";
+              *inFile = optarg;
+              break;
+      case 'd': if (decryptFlag) {
+                    printUsage();
+                    exit(1);
+                } else {
+                  decryptFlag++;
+                  encryptFlag++;
+                }
+                *mode = "DECRYPT";
+                *inFile = optarg;
+                break;
+      case 'o':
+              *outFile = optarg;
+              break;
+      default: printUsage();
+               exit(1);
+               break;
+    }
+  }
+}
 int main(int argc, char *argv[])
 {
+    if (argc < 4) {
+      printUsage();
+      exit(1);
+    }
+    char *mode, *inFile, *outFile;
+    getoptions(&mode, &inFile, &outFile, argc, argv);
+    if (outFile == NULL || inFile == NULL || mode == NULL) {
+      printUsage();
+      exit(1);
+    }
     init();
     char *password = getpass("Password:");
-    char *mode = argv[1];
-    char *inFile = argv[2];
-    char *outFile = argv[3];
 
     printf("mode: %s, inFile %s, outFile: %s\n", mode, inFile, outFile );
     KEY_IV *key_iv = generateKeyIV(password);
