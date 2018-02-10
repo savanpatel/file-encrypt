@@ -13,7 +13,7 @@ on mac
 Build the executable with `make`
 
 Encrypt file:
- `./file-crypt ENCRYPT test.c test.enc`
+ `./file-crypt -e test.c -o test.enc`
 
 Decrypt file:
- `./file-crypt DECRYPT test.enc decrypted.c`
+ `./file-crypt -d test.enc -o decrypted.c`
